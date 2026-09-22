@@ -74,3 +74,52 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === "production";
+
+/**
+ * A hosted deployment pointing at 127.0.0.1 is the single most common way
+ * this goes wrong: the values in .env.example are real and they work
+ * locally, so they get pasted into a host's settings, where localhost means
+ * "this container" and nothing is listening.
+ *
+ * Prisma's own error ("Can't reach database server at 127.0.0.1:5434") does
+ * not explain that, so catch it here and say what to do instead.
+ */
+if (isProd) {
+  const local = /(localhost|127\.0\.0\.1|::1)/;
+  const offenders = (
+    [
+      ["DATABASE_URL", env.DATABASE_URL],
+      ["REDIS_URL", env.REDIS_URL],
+    ] as const
+  ).filter(([, value]) => local.test(value));
+
+  if (offenders.length > 0) {
+    throw new Error(
+      [
+        `These point at localhost but NODE_ENV is production: ${offenders
+          .map(([key]) => key)
+          .join(", ")}`,
+        "",
+        "On a hosting provider, localhost is the container this process runs",
+        "in — your database is not there. Use the provider's own connection",
+        "string:",
+        "",
+        "  Render   Postgres / Key Value -> Internal Connection String",
+        "  Railway  the service -> Variables -> DATABASE_URL / REDIS_URL",
+        "  Fly.io   fly postgres attach",
+        "",
+        "The values in .env.example are for local Docker only.",
+      ].join("\n"),
+    );
+  }
+
+  if (env.JWT_SECRET.startsWith("replace-me")) {
+    throw new Error(
+      [
+        "JWT_SECRET is still the placeholder from .env.example.",
+        "Generate one:",
+        "  node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
+      ].join("\n"),
+    );
+  }
+}
