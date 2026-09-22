@@ -29,13 +29,25 @@ declare global {
 const DEVICE_COOKIE = "vo_device";
 const SESSION_COOKIE = "vo_session";
 
+/**
+ * In production the API and the web app live on different domains — Render
+ * and wherever the frontend is hosted — which makes every cookie cross-site.
+ * A `Lax` cookie is simply not sent on those requests, so the session would
+ * silently never arrive. `None` requires `Secure`, which is fine because
+ * Render terminates TLS for us.
+ *
+ * Locally both sides are localhost, so `Lax` is correct and `None` would be
+ * rejected for lacking `Secure`.
+ */
+const crossSite = isProd;
+
 function setCookie(res: Response, name: string, value: string, days: number) {
   res.append(
     "Set-Cookie",
     cookie.serialize(name, value, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: isProd,
+      sameSite: crossSite ? "none" : "lax",
+      secure: crossSite,
       path: "/",
       maxAge: days * 24 * 60 * 60,
     }),
@@ -47,8 +59,8 @@ export function clearCookie(res: Response, name: string) {
     "Set-Cookie",
     cookie.serialize(name, "", {
       httpOnly: true,
-      sameSite: "lax",
-      secure: isProd,
+      sameSite: crossSite ? "none" : "lax",
+      secure: crossSite,
       path: "/",
       maxAge: 0,
     }),

@@ -29,6 +29,66 @@ node e2e.mjs                        # drives the whole call loop
 > bound to 5433 and 6380. Change them in `docker-compose.yml` and `.env`
 > together if you need to.
 
+## Deploying to Render
+
+`render.yaml` is a blueprint: it creates the API, Postgres, Redis and the
+voice service together.
+
+1. Push this repo to GitHub.
+2. Render dashboard → **New → Blueprint** → pick the repo.
+3. Render reads `backend/render.yaml` and creates four resources.
+4. Set the one variable it cannot guess — on **voiceonly-api → Environment**:
+
+   | Key | Value |
+   |---|---|
+   | `CORS_ORIGIN` | your frontend URL, e.g. `https://voice-call.vercel.app` |
+
+   No trailing slash, and comma-separate if you have several. It is an
+   allowlist, not a wildcard: the API sends credentials, so reflecting any
+   origin would let any site make authenticated calls for your users.
+
+5. Point the frontend at the API — set `NEXT_PUBLIC_API_URL` to the Render
+   URL (`https://voiceonly-api.onrender.com`). The WebSocket URL is derived
+   from it, so `wss://` is automatic.
+
+The build runs `prisma migrate deploy`, which applies the committed
+migrations in `prisma/migrations/` without prompting. Never `db push` against
+a live database.
+
+### Things that differ in production
+
+**Cookies go cross-site.** The API and the web app are on different domains,
+so cookies are issued `Secure; SameSite=None`. That only works over HTTPS,
+which Render provides.
+
+**Signup needs an email provider.** Nothing sends the six-digit code yet, so
+signup cannot complete. Guest calling works fully without it.
+
+To test signup before wiring a provider, set `UNSAFE_RETURN_LOGIN_CODES=true`
+and the API returns the code in the response instead. **This lets anyone sign
+in as any email address.** It is for your own testing only — turn it off
+before anyone else uses the deployment. The real fix is one function in
+`auth.routes.ts`.
+
+**Pro cannot be bought.** `/v1/billing/subscribe` refuses to run in
+production, because the client must never be able to grant itself Pro. Real
+entitlement has to arrive from a signed Razorpay webhook.
+
+**The free tier sleeps.** Render free web services spin down after ~15
+minutes idle; the next request takes about a minute to wake them, and open
+WebSockets are dropped when they sleep. Fine for trying it on your phone,
+not for real users.
+
+**TURN is still missing.** Peer-to-peer covers most networks. Two phones on
+different mobile carriers may fail to connect without a relay — run coturn
+and pass the ICE servers to the client.
+
+### Using it on a phone
+
+`getUserMedia` only works in a secure context, so both halves must be HTTPS.
+Render gives the API HTTPS automatically; host the frontend somewhere that
+does the same. Then open the frontend URL on your phone and press call.
+
 ## Stack
 
 | Piece | Choice |
@@ -139,6 +199,12 @@ refund.
 | GET/POST | `/v1/friends` … | mutual consent only |
 | GET/POST | `/v1/billing/*` | entitlement state machine |
 | POST | `/v1/voice/classify` | raw WAV body |
+
+### Environment
+
+See `.env.example`. Two worth knowing: `CORS_ORIGIN` is a comma-separated
+allowlist, and `UNSAFE_RETURN_LOGIN_CODES` must stay `false` once real users
+exist.
 
 ### WebSocket
 

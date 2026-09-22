@@ -22,6 +22,19 @@ const schema = z.object({
 
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
 
+  /**
+   * Returns login codes in the API response instead of emailing them.
+   *
+   * This is a testing escape hatch for a deployment with no mail provider
+   * wired up yet. It means anyone who knows an email address can sign in as
+   * that account, so it must be off before real users exist. Named loudly on
+   * purpose.
+   */
+  UNSAFE_RETURN_LOGIN_CODES: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
   VOICE_SERVICE_URL: z.string().default("http://localhost:8000"),
   /** Below this, an inferred gender is treated as unknown. */
   VOICE_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.9),

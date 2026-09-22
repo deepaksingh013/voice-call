@@ -18,9 +18,17 @@ export function createApp() {
 
   app.set("trust proxy", 1);
 
+  // CORS_ORIGIN is a comma-separated allowlist so preview deployments can be
+  // added without a code change. It is an allowlist on purpose: reflecting
+  // any origin back while also sending credentials would let any site on the
+  // internet make authenticated calls on a visitor's behalf.
+  const origins = env.CORS_ORIGIN.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(",").map((s) => s.trim()),
+      origin: origins,
       // The device and session tokens are httpOnly cookies, so the browser
       // has to be allowed to send them.
       credentials: true,

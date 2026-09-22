@@ -50,19 +50,29 @@ authRoutes.post(
       },
     });
 
-    // TODO: hand off to a transactional email provider. Until one is wired
-    // up the code is logged, which is fine in development and must never
-    // reach production — see the guard below.
-    if (env.NODE_ENV === "production") {
-      logger.warn("login code generated but no email provider is configured");
+    // TODO: hand off to a transactional email provider (Resend, SES, Postmark).
+    // This is the one place that needs to change.
+    const exposeCode = env.NODE_ENV === "development" || env.UNSAFE_RETURN_LOGIN_CODES;
+
+    if (exposeCode) {
+      logger.info({ email, code }, "login code (not emailed)");
     } else {
-      logger.info({ email, code }, "login code (dev only)");
+      logger.warn(
+        { email },
+        "login code generated but no email provider is configured — the user cannot receive it",
+      );
+    }
+
+    if (env.UNSAFE_RETURN_LOGIN_CODES && env.NODE_ENV === "production") {
+      logger.warn(
+        "UNSAFE_RETURN_LOGIN_CODES is on in production. Anyone can sign in as any email. Turn it off before real users.",
+      );
     }
 
     res.json({
       ok: true,
       expiresInMinutes: CODE_TTL_MIN,
-      ...(env.NODE_ENV === "development" ? { devCode: code } : {}),
+      ...(exposeCode ? { devCode: code } : {}),
     });
   }),
 );
