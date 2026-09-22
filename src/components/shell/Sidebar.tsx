@@ -28,7 +28,7 @@ import { cn } from "@/lib/cn";
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { tier, name, isGuest, isPro, onlineCount } = useApp();
+  const { tier, name, isGuest, isPro, onlineCount, showOnline } = useApp();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -118,13 +118,17 @@ export function Sidebar() {
         )}
 
         <div className="mt-3 flex items-center justify-between px-2 text-[10.5px] text-dim">
-          <span className="flex items-center gap-1.5 text-mint">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mint" />
+          {showOnline ? (
+            <span className="flex items-center gap-1.5 text-mint">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mint" />
+              </span>
+              <span className="tabular-nums">{onlineCount} online</span>
             </span>
-            <span className="tabular-nums">{onlineCount} online</span>
-          </span>
+          ) : (
+            <span />
+          )}
           <span>
             {APP_VERSION} ·{" "}
             <Link href="/legal/terms" className="hover:text-slate">

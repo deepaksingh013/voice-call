@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -18,7 +19,7 @@ import { TabsChrome } from "@/components/shell/TabsChrome";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Section";
-import { FRIENDS } from "@/lib/data";
+import { apiStats, type Stats } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import type { ReactNode } from "react";
 
@@ -32,7 +33,19 @@ import type { ReactNode } from "react";
  */
 function ProfileScreen() {
   const router = useRouter();
-  const { name, tier, isGuest, isPro, filters, setTier } = useApp();
+  const { name, isGuest, isPro, filters, signOut, me } = useApp();
+  const [stats, setStats] = useState<Stats | null>(null);
+
+  useEffect(() => {
+    if (isGuest) return;
+    let alive = true;
+    apiStats()
+      .then((s) => alive && setStats(s))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [isGuest]);
 
   if (isGuest) {
     return (
@@ -87,7 +100,9 @@ function ProfileScreen() {
                 <>
                   <Badge tone="gold">Pro</Badge>
                   {/* No surprise charges. */}
-                  renews [DATE]
+                  {me?.user?.proRenewsAt
+                    ? `renews ${new Date(me.user.proRenewsAt).toLocaleDateString()}`
+                    : "active"}
                 </>
               ) : (
                 <Badge>Free</Badge>
@@ -102,9 +117,9 @@ function ProfileScreen() {
           className="mt-5 grid grid-cols-3 gap-2 lg:col-span-2 lg:max-w-[560px] lg:gap-3"
         >
           {[
-            { value: "142", label: "calls" },
-            { value: "6h 21m", label: "talk time" },
-            { value: String(FRIENDS.length), label: "friends" },
+            { value: String(stats?.calls ?? 0), label: "calls" },
+            { value: stats?.talkTime ?? "0h 0m", label: "talk time" },
+            { value: String(stats?.friends ?? 0), label: "friends" },
           ].map((s) => (
             <div
               key={s.label}
@@ -158,7 +173,7 @@ function ProfileScreen() {
           <Row
             icon={<Users size={15} />}
             label="Friends"
-            meta={String(FRIENDS.length)}
+            meta={String(stats?.friends ?? 0)}
             onClick={() => router.push("/friends")}
           />
         </motion.section>
@@ -198,31 +213,23 @@ function ProfileScreen() {
             strokeWidth={2.2}
           />
           <p className="text-[12px] leading-relaxed text-ash">
-            Account in good standing. 0 reports in the last 90 days.
+            {stats && stats.strikes > 0
+              ? `${stats.strikes} upheld report${stats.strikes === 1 ? "" : "s"} on this account. Three means a suspension.`
+              : "Account in good standing. 0 reports in the last 90 days."}
           </p>
         </motion.div>
 
-        {/* Prototype affordance: flip tiers to inspect every entitlement state. */}
         <motion.div variants={listItem} className="mt-5 pb-2">
-          <h2 className="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-dim">
-            Prototype — switch tier
-          </h2>
-          <div className="grid grid-cols-3 gap-2">
-            {(["guest", "free", "pro"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTier(t)}
-                className={`tap rounded-xl border py-2 text-[12px] font-semibold capitalize ${
-                  tier === t
-                    ? "border-mint/60 bg-mint-tint text-mint"
-                    : "border-line bg-surface text-slate"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut();
+              router.push("/");
+            }}
+            className="tap w-full rounded-xl border border-line bg-surface py-3 text-[13px] font-semibold text-ash hover:border-slate/50 hover:text-chalk"
+          >
+            Sign out
+          </button>
         </motion.div>
       </motion.div>
     </Screen>

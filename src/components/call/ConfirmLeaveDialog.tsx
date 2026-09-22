@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { PEER } from "@/lib/data";
 import { clock } from "@/lib/cn";
 
 export type LeaveAction = "end" | "next";
@@ -21,11 +20,13 @@ export type LeaveAction = "end" | "next";
 export function ConfirmLeaveDialog({
   action,
   seconds,
+  peerName,
   onConfirm,
   onCancel,
 }: {
   action: LeaveAction | null;
   seconds: number;
+  peerName: string;
   /** `remember` carries the "don't ask me again" choice for this action only. */
   onConfirm: (remember: boolean) => void;
   onCancel: () => void;
@@ -45,7 +46,7 @@ export function ConfirmLeaveDialog({
 
       <p className="mt-2 text-[13px] leading-relaxed text-ash">
         You have been talking for {clock(seconds)}. You will not be able to reach{" "}
-        {PEER.name} again unless you add them as a friend first.
+        {peerName} again unless you add them as a friend first.
       </p>
 
       <div className="mt-5 space-y-2.5">

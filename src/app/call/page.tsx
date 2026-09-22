@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -24,8 +24,9 @@ import {
 import { InCallChat } from "@/components/call/InCallChat";
 import { ReportSheet } from "@/components/call/ReportSheet";
 import { GenderFilterBar } from "@/components/call/GenderFilterBar";
-import { PEER } from "@/lib/data";
 import { useApp } from "@/lib/store";
+import { useCall } from "@/lib/call";
+import { apiAddFriend, apiReport } from "@/lib/api";
 import { clock, cn } from "@/lib/cn";
 
 /**
@@ -42,25 +43,33 @@ import { clock, cn } from "@/lib/cn";
 export default function CallPage() {
   const router = useRouter();
   const { isGuest, prefs, setPref, autoConnect } = useApp();
+  const { status, peer, callId, seconds, muted, error, toggleMute, end, next } =
+    useCall();
 
-  const [seconds, setSeconds] = useState(252); // the spec shows 04:12
-  const [muted, setMuted] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [confirming, setConfirming] = useState<LeaveAction | null>(null);
+  const [added, setAdded] = useState(false);
 
+  // If there is no live call — a refresh, or the peer left — there is
+  // nothing to show here.
   useEffect(() => {
-    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
+    if (status === "ended") router.replace("/call/ended");
+    else if (status === "idle") router.replace("/talk");
+    else if (status === "searching" || status === "queue-empty") {
+      router.replace("/searching");
+    }
+  }, [status, router]);
 
-  const leave = useCallback(
-    (action: LeaveAction) => {
-      if (action === "next") router.push("/searching");
-      else router.push(autoConnect ? "/searching" : "/call/ended");
-    },
-    [router, autoConnect],
-  );
+  const leave = (action: LeaveAction) => {
+    if (action === "next") {
+      next();
+      router.push("/searching");
+      return;
+    }
+    end("HANGUP");
+    router.push(autoConnect ? "/searching" : "/call/ended");
+  };
 
   const request = (action: LeaveAction) => {
     const skip = action === "end" ? prefs.skipConfirmEnd : prefs.skipConfirmNext;
@@ -77,6 +86,17 @@ export default function CallPage() {
     setConfirming(null);
     leave(action);
   };
+
+  if (!peer) {
+    return (
+      <>
+        <TopBar />
+        <main className="flex flex-1 items-center justify-center px-6 text-center">
+          <p className="text-[13px] text-slate">Connecting…</p>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
@@ -100,23 +120,25 @@ export default function CallPage() {
               transition={{ type: "spring", damping: 20, stiffness: 260 }}
               className="mt-5"
             >
-              <Avatar name={PEER.initial} size="xl" />
+              <Avatar name={peer.name} size="xl" />
             </motion.div>
 
             <h1 className="mt-4 text-[22px] font-bold tracking-tight text-chalk sm:text-[26px]">
-              {PEER.name}
+              {peer.name}
             </h1>
 
-            {/* The country pill sits directly under the name, for every user, on
-                every call including guests. It sets the language expectation and
-                it is the main reason people report a call as spam or a scam. */}
-            <div className="mt-2 flex items-center gap-2">
+            {/* The country pill sits directly under the name, for every user,
+                on every call including guests. It sets the language
+                expectation and it is the main reason people report a call as
+                spam or a scam. */}
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
               <span className="flex items-center gap-1.5 rounded-pill border border-line bg-surface px-2.5 py-1 text-[11.5px] font-medium text-ash">
                 <Globe size={11} strokeWidth={2.4} />
-                {PEER.country}
+                {peer.country}
               </span>
               <span className="text-[11.5px] text-slate">
-                {PEER.age} · {PEER.city} · {PEER.language}
+                {peer.age ? `${peer.age} · ` : ""}
+                {peer.verified ? "Verified account" : "Guest"}
               </span>
             </div>
 
@@ -128,6 +150,8 @@ export default function CallPage() {
             >
               {clock(seconds)}
             </p>
+
+            {error && <p className="mt-3 text-[12px] text-coral">{error}</p>}
           </div>
 
           {/* The three primary controls. */}
@@ -159,11 +183,7 @@ export default function CallPage() {
 
           {/* Second row — convenience controls, flat and quieter. */}
           <div className="grid shrink-0 grid-cols-3 gap-2 sm:gap-3">
-            <SecondaryControl
-              label="Mute"
-              active={muted}
-              onClick={() => setMuted((m) => !m)}
-            >
+            <SecondaryControl label="Mute" active={muted} onClick={toggleMute}>
               {muted ? <MicOff size={15} /> : <Mic size={15} />}
             </SecondaryControl>
 
@@ -173,18 +193,21 @@ export default function CallPage() {
 
             {/* Padlocked for guests; tapping routes to signup. */}
             <SecondaryControl
-              label="Add"
+              label={added ? "Added" : "Add"}
               locked={isGuest}
-              onClick={() => router.push(isGuest ? "/signup" : "/friends")}
+              active={added}
+              onClick={async () => {
+                if (isGuest) return router.push("/signup");
+                await apiAddFriend(peer.deviceId).catch(() => undefined);
+                setAdded(true);
+              }}
             >
               {isGuest ? <Lock size={14} /> : <UserPlus size={15} />}
             </SecondaryControl>
           </div>
 
-          {/* Who the next call is with. Mid-call is when a user is most
-              certain about who they do and do not want to meet, so the
-              choice is offered here rather than only back on the home
-              screen. */}
+          {/* Mid-call is when a user is most certain about who they do and do
+              not want to meet, so the choice is offered here too. */}
           <div className="mt-3 shrink-0">
             <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-dim">
               Next call with
@@ -197,6 +220,7 @@ export default function CallPage() {
       <ConfirmLeaveDialog
         action={confirming}
         seconds={seconds}
+        peerName={peer.name}
         onConfirm={confirm}
         onCancel={() => setConfirming(null)}
       />
@@ -204,6 +228,8 @@ export default function CallPage() {
       <InCallChat
         open={chatOpen}
         seconds={seconds}
+        peerName={peer.name}
+        peerCountry={peer.country}
         onClose={() => setChatOpen(false)}
         onEnd={() => {
           setChatOpen(false);
@@ -216,9 +242,20 @@ export default function CallPage() {
       <ReportSheet
         open={reportOpen}
         seconds={seconds}
+        peerName={peer.name}
         onClose={() => setReportOpen(false)}
-        onSubmit={() => {
+        onSubmit={async (reason, attachAudio) => {
+          if (callId) {
+            await apiReport({
+              callId,
+              reason,
+              // A wrong-gender report is ground truth for the classifier.
+              wrongGender: reason === "OTHER" ? undefined : undefined,
+              note: attachAudio ? "audio attached" : undefined,
+            }).catch(() => undefined);
+          }
           setReportOpen(false);
+          end("HANGUP");
           router.push("/call/ended?reported=1");
         }}
       />

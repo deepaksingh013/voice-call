@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Stepper } from "@/components/ui/Stepper";
 import { GoogleMark } from "@/components/ui/GoogleMark";
 import { VenusIcon, MarsIcon } from "@/components/ui/GenderIcons";
+import { apiRequestCode, ApiError } from "@/lib/api";
 
 /**
  * SCREEN 10 — Signup, email or Google.
@@ -20,7 +21,9 @@ import { VenusIcon, MarsIcon } from "@/components/ui/GenderIcons";
 function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.get("email") ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Set when the user arrived by reaching for the gender filter. Naming
   // the reason they came keeps the thread intact all the way to the
@@ -28,6 +31,28 @@ function SignupForm() {
   const wantsGender = params.get("want") === "gender";
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await apiRequestCode(email);
+      const q = new URLSearchParams({ email });
+      if (wantsGender) q.set("want", "gender");
+      // Development only: the API hands back the code so no mail provider
+      // is needed while building.
+      if (r.devCode) q.set("dev", r.devCode);
+      router.push(`/signup/verify?${q}`);
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Could not send a code. Try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -73,16 +98,13 @@ function SignupForm() {
 
         <div className="mt-7 space-y-4">
           {/* Google first: one tap, already verified, skips the code screen. */}
-          <Button
-            variant="secondary"
-            onClick={() => {
-              // Google users land on step 2 with the code step already done.
-              router.push("/signup/verify?via=google");
-            }}
-          >
+          <Button variant="secondary" disabled>
             <GoogleMark />
             Continue with Google
           </Button>
+          <p className="-mt-2 text-center text-[11px] text-dim">
+            Google sign-in is not wired up yet.
+          </p>
 
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-line" />
@@ -92,12 +114,7 @@ function SignupForm() {
             <span className="h-px flex-1 bg-line" />
           </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (valid) router.push("/signup/verify");
-            }}
-          >
+          <form onSubmit={submit}>
             <label
               htmlFor="email"
               className="mb-2 block text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate"
@@ -118,10 +135,19 @@ function SignupForm() {
               Use a throwaway address if you prefer — that works fine here.
             </p>
 
-            <Button type="submit" disabled={!valid} className="mt-4">
-              Send me a code
+            <Button type="submit" disabled={!valid || busy} className="mt-4">
+              {busy ? "Sending…" : "Send me a code"}
             </Button>
           </form>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl border border-coral/40 bg-danger-tint px-4 py-3 text-[12px] leading-relaxed text-coral"
+            >
+              {error}
+            </p>
+          )}
         </div>
 
         <p className="mt-auto pt-8 text-[11px] leading-relaxed text-dim">

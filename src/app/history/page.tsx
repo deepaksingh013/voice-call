@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Flag, Info, UserPlus } from "lucide-react";
@@ -8,32 +8,49 @@ import { Screen, listItem, listStagger } from "@/components/shell/Screen";
 import { TabsChrome } from "@/components/shell/TabsChrome";
 import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Pill";
-import { CALL_HISTORY } from "@/lib/data";
 import { useApp } from "@/lib/store";
+import { apiAddFriend, apiHistory, type HistoryRow } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 /**
  * SCREEN 15 — Call history.
  *
- * Recent calls with duration and a per-row action: add friend for good calls,
- * report for ones that ended badly. Late reporting matters — many users only
- * report after they have hung up and calmed down, so the report action stays
- * open for at least 24 hours.
+ * Recent calls with duration and a per-row action. Late reporting matters —
+ * many users only report after they have hung up and calmed down — so the
+ * server keeps the report window open for 24 hours and tells us per row.
  *
- * Guest history lives on the device. On signup it should migrate to the
- * account rather than be discarded.
+ * A guest's history follows their device, which is the honest reason to
+ * create an account and what the notice at the bottom says.
  */
 
 const TABS = ["All", "Friends", "Reported"] as const;
+const PARAM = { All: "all", Friends: "friends", Reported: "reported" } as const;
 
 function HistoryScreen() {
   const router = useRouter();
   const { isGuest } = useApp();
-  const [tab, setTab] = useState<(typeof TABS)[number]>("All");
 
-  const rows = CALL_HISTORY.filter((c) =>
-    tab === "Friends" ? c.friend : tab === "Reported" ? c.reported : true,
-  );
+  const [tab, setTab] = useState<(typeof TABS)[number]>("All");
+  const [rows, setRows] = useState<HistoryRow[]>([]);
+  const [deviceOnly, setDeviceOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    apiHistory(PARAM[tab])
+      .then((r) => {
+        if (!alive) return;
+        setRows(r.calls);
+        setDeviceOnly(r.deviceOnly);
+      })
+      .catch(() => alive && setRows([]))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [tab]);
 
   return (
     <Screen width="wide" className="pb-4 pt-4 lg:pt-7">
@@ -71,7 +88,7 @@ function HistoryScreen() {
               {/* Country on every row — the fastest way to recognise a call
                   you want to report or add. */}
               <p className="truncate text-[11.5px] text-slate">
-                {call.country} · {call.when}
+                {call.country} · {new Date(call.at).toLocaleString()}
               </p>
             </div>
 
@@ -93,31 +110,42 @@ function HistoryScreen() {
               </button>
             ) : (
               <div className="flex shrink-0 gap-1">
-                {/* Another signup door. */}
-                <button
-                  type="button"
-                  onClick={() => router.push(isGuest ? "/signup" : "/friends")}
-                  aria-label={`Add ${call.name} as a friend`}
-                  className="tap grid h-8 w-8 place-items-center rounded-lg border border-line bg-surface text-mint hover:border-mint/40"
-                >
-                  <UserPlus size={14} strokeWidth={2.2} />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Report ${call.name}`}
-                  className="tap grid h-8 w-8 place-items-center rounded-lg border border-line bg-surface text-slate hover:border-coral/40 hover:text-coral"
-                >
-                  <Flag size={14} strokeWidth={2.2} />
-                </button>
+                {(call.canAddFriend || isGuest) && (
+                  <button
+                    type="button"
+                    disabled={added.has(call.deviceId)}
+                    onClick={async () => {
+                      if (isGuest) return router.push("/signup");
+                      await apiAddFriend(call.deviceId).catch(() => undefined);
+                      setAdded((s) => new Set(s).add(call.deviceId));
+                    }}
+                    aria-label={`Add ${call.name} as a friend`}
+                    className="tap grid h-8 w-8 place-items-center rounded-lg border border-line bg-surface text-mint hover:border-mint/40 disabled:opacity-40"
+                  >
+                    <UserPlus size={14} strokeWidth={2.2} />
+                  </button>
+                )}
+                {call.canReport && (
+                  <button
+                    type="button"
+                    aria-label={`Report ${call.name}`}
+                    className="tap grid h-8 w-8 place-items-center rounded-lg border border-line bg-surface text-slate hover:border-coral/40 hover:text-coral"
+                  >
+                    <Flag size={14} strokeWidth={2.2} />
+                  </button>
+                )}
               </div>
             )}
           </motion.li>
         ))}
 
-        {rows.length === 0 && (
+        {!loading && rows.length === 0 && (
           <li className="py-16 text-center text-[13px] text-slate">
-            Nothing here yet.
+            {tab === "All" ? "No calls yet." : "Nothing here."}
           </li>
+        )}
+        {loading && (
+          <li className="py-16 text-center text-[13px] text-slate">Loading…</li>
         )}
       </motion.ul>
 
@@ -126,8 +154,7 @@ function HistoryScreen() {
           Two-word names are guests. A real first name means a verified account.
         </p>
 
-        {/* The honest reason a guest should create an account. */}
-        {isGuest && (
+        {deviceOnly && (
           <button
             type="button"
             onClick={() => router.push("/signup")}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -8,9 +9,8 @@ import { Screen, listItem, listStagger } from "@/components/shell/Screen";
 import { TabsChrome } from "@/components/shell/TabsChrome";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { FRIENDS } from "@/lib/data";
 import { useApp } from "@/lib/store";
-import { cn } from "@/lib/cn";
+import { apiFriends, type FriendRow } from "@/lib/api";
 
 /**
  * Friends list — the entry point to screen 16.
@@ -22,6 +22,24 @@ import { cn } from "@/lib/cn";
 function FriendsScreen() {
   const router = useRouter();
   const { isGuest } = useApp();
+
+  const [friends, setFriends] = useState<FriendRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isGuest) {
+      setLoading(false);
+      return;
+    }
+    let alive = true;
+    apiFriends()
+      .then((r) => alive && setFriends(r.friends))
+      .catch(() => alive && setFriends([]))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [isGuest]);
 
   if (isGuest) {
     return (
@@ -66,7 +84,9 @@ function FriendsScreen() {
         Friends
       </h1>
       <p className="mt-1 shrink-0 text-[12px] text-slate">
-        {FRIENDS.filter((f) => f.online).length} online now
+        {loading
+          ? "Loading…"
+          : `${friends.length} friend${friends.length === 1 ? "" : "s"}`}
       </p>
 
       <motion.ul
@@ -75,40 +95,37 @@ function FriendsScreen() {
         animate="show"
         className="mt-4 flex-1 space-y-1 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-0 md:space-y-0 lg:grid-cols-1 xl:grid-cols-2"
       >
-        {FRIENDS.map((f) => (
-          <motion.li key={f.id} variants={listItem}>
+        {friends.map((f) => (
+          <motion.li key={f.friendshipId} variants={listItem}>
             <Link
-              href={`/friends/${f.id}`}
+              href={`/friends/${f.friendshipId}`}
               className="tap flex items-center gap-3 rounded-xl px-1 py-2.5 hover:bg-surface/60"
             >
-              <span className="relative shrink-0">
-                <Avatar name={f.name} size="md" />
-                <span
-                  className={cn(
-                    "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-ink",
-                    f.online ? "bg-mint" : "bg-dim",
-                  )}
-                />
-              </span>
+              <Avatar name={f.name} size="md" />
 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[14px] font-semibold text-chalk">
                   {f.name}
                 </p>
-                <p className="truncate text-[11.5px] text-slate">{f.preview}</p>
+                <p className="truncate text-[11.5px] text-slate">
+                  {f.preview ?? "Say hello"}
+                </p>
               </div>
 
-              <div className="shrink-0 text-right">
-                <p className="text-[10.5px] text-dim">{f.at}</p>
-                {f.unread ? (
-                  <span className="mt-1 inline-grid h-[18px] min-w-[18px] place-items-center rounded-pill bg-mint px-1.5 text-[10.5px] font-bold text-ink">
-                    {f.unread}
-                  </span>
-                ) : null}
-              </div>
+              {f.at && (
+                <p className="shrink-0 text-[10.5px] text-dim">
+                  {new Date(f.at).toLocaleDateString()}
+                </p>
+              )}
             </Link>
           </motion.li>
         ))}
+
+        {!loading && friends.length === 0 && (
+          <li className="py-16 text-center text-[13px] text-slate">
+            No friends yet. Add someone after a good call.
+          </li>
+        )}
       </motion.ul>
     </Screen>
   );

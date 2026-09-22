@@ -191,6 +191,14 @@ export function attachGateway(server: Server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
   wss.on("connection", async (ws, req) => {
+    // Authenticating needs a database round trip, and the socket is already
+    // open to the client by then — anything it sends in that window would be
+    // dropped, because no "message" listener exists yet. Buffer instead, and
+    // replay once the connection is registered.
+    const early: string[] = [];
+    const buffer = (raw: unknown) => early.push(String(raw));
+    ws.on("message", buffer);
+
     const caller = await authenticate(req.url ?? "");
     if (!caller) {
       send(ws, { t: "error", message: "Unauthorized" });
@@ -219,7 +227,7 @@ export function attachGateway(server: Server) {
 
     ws.on("pong", () => (conn.alive = true));
 
-    ws.on("message", async (raw) => {
+    const onMessage = async (raw: unknown) => {
       let msg: ClientMsg;
       try {
         msg = JSON.parse(String(raw)) as ClientMsg;
@@ -290,7 +298,13 @@ export function attachGateway(server: Server) {
         logger.error({ err, t: msg.t }, "ws handler failed");
         send(ws, { t: "error", message: "Something went wrong" });
       }
-    });
+    };
+
+    ws.off("message", buffer);
+    ws.on("message", onMessage);
+    // Replay whatever arrived while we were still authenticating.
+    for (const raw of early) void onMessage(raw);
+    early.length = 0;
 
     ws.on("close", async () => {
       // Only clear the registry if this socket is still the current one —

@@ -8,6 +8,7 @@ import { Screen } from "@/components/shell/Screen";
 import { Button } from "@/components/ui/Button";
 import { GoogleMark } from "@/components/ui/GoogleMark";
 import { useApp } from "@/lib/store";
+import { apiRequestCode, apiVerify, ApiError } from "@/lib/api";
 
 /**
  * Log in — the "I already have an account" path from screen 01.
@@ -17,15 +18,55 @@ import { useApp } from "@/lib/store";
  */
 export default function LoginPage() {
   const router = useRouter();
-  const { setTier } = useApp();
+  const { refresh } = useApp();
+
+  const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const signIn = () => {
-    setTier("free");
-    router.push("/talk");
-  };
+  async function sendCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await apiRequestCode(email);
+      setStep("code");
+      // Development only: the API returns the code so there is no need for
+      // a mail provider while building.
+      if (r.devCode) setHint(`Development code: ${r.devCode}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not send a code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (code.length !== 6 || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await apiVerify({ email, code });
+      if (r.needsProfile) {
+        // No account on this email yet — that is signup, not login.
+        router.push(`/signup?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      await refresh();
+      router.push("/talk");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "That did not work.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -41,15 +82,18 @@ export default function LoginPage() {
           Welcome back
         </motion.h1>
         <p className="mt-2.5 text-[13px] leading-relaxed text-slate">
-          Same email or Google account you used before. There is no password to
-          remember — we send a code.
+          Same email you used before. There is no password to remember — we send a
+          code.
         </p>
 
         <div className="mt-7 space-y-4">
-          <Button variant="secondary" onClick={signIn}>
+          <Button variant="secondary" disabled>
             <GoogleMark />
             Continue with Google
           </Button>
+          <p className="-mt-2 text-center text-[11px] text-dim">
+            Google sign-in is not wired up yet.
+          </p>
 
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-line" />
@@ -59,32 +103,75 @@ export default function LoginPage() {
             <span className="h-px flex-1 bg-line" />
           </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (valid) signIn();
-            }}
-          >
-            <label
-              htmlFor="login-email"
-              className="mb-2 block text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate"
+          {step === "email" ? (
+            <form onSubmit={sendCode}>
+              <label
+                htmlFor="login-email"
+                className="mb-2 block text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate"
+              >
+                Email address
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="h-[52px] w-full rounded-2xl border border-line bg-surface px-4 text-[15px] text-chalk placeholder:text-dim focus:border-mint/60 focus:outline-none focus:ring-2 focus:ring-mint/20"
+              />
+              <Button type="submit" disabled={!valid || busy} className="mt-4">
+                {busy ? "Sending…" : "Send me a code"}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={submitCode}>
+              <label
+                htmlFor="login-code"
+                className="mb-2 block text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate"
+              >
+                Six-digit code
+              </label>
+              <input
+                id="login-code"
+                inputMode="numeric"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                className="h-[52px] w-full rounded-2xl border border-line bg-surface px-4 text-center text-[20px] font-semibold tracking-[0.3em] tabular-nums text-chalk placeholder:text-dim focus:border-mint/60 focus:outline-none"
+              />
+              {hint && <p className="mt-2 text-[11.5px] text-mint">{hint}</p>}
+              <Button
+                type="submit"
+                disabled={code.length !== 6 || busy}
+                className="mt-4"
+              >
+                {busy ? "Checking…" : "Log in"}
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("email");
+                  setCode("");
+                  setHint(null);
+                }}
+                className="tap mt-3 w-full text-center text-[12px] text-slate hover:text-ash"
+              >
+                Use a different email
+              </button>
+            </form>
+          )}
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl border border-coral/40 bg-danger-tint px-4 py-3 text-[12px] leading-relaxed text-coral"
             >
-              Email address
-            </label>
-            <input
-              id="login-email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="h-[52px] w-full rounded-2xl border border-line bg-surface px-4 text-[15px] text-chalk placeholder:text-dim focus:border-mint/60 focus:outline-none focus:ring-2 focus:ring-mint/20"
-            />
-            <Button type="submit" disabled={!valid} className="mt-4">
-              Send me a code
-            </Button>
-          </form>
+              {error}
+            </p>
+          )}
         </div>
 
         <div className="mt-auto pt-8">

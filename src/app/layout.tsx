@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppProvider } from "@/lib/store";
 import { DrawerProvider } from "@/components/shell/Drawer";
 import { AppShell } from "@/components/shell/AppShell";
+import { CallProvider } from "@/lib/call";
 
 export const metadata: Metadata = {
   title: "Voice-Only — Random Calling App",
@@ -24,9 +25,11 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AppProvider>
-          <DrawerProvider>
-            <AppShell>{children}</AppShell>
-          </DrawerProvider>
+          <CallProvider>
+            <DrawerProvider>
+              <AppShell>{children}</AppShell>
+            </DrawerProvider>
+          </CallProvider>
         </AppProvider>
       </body>
     </html>

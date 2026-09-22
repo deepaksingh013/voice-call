@@ -12,7 +12,13 @@ import {
   UserX,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
-import { FRIENDS, FRIEND_THREAD, type Message } from "@/lib/data";
+import {
+  apiFriends,
+  apiSendMessage,
+  apiThread,
+  type FriendRow,
+  type ThreadMessage,
+} from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 /**
@@ -33,24 +39,63 @@ export default function FriendChatPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const friend = FRIENDS.find((f) => f.id === id) ?? FRIENDS[0];
-
-  const [messages, setMessages] = useState<Message[]>(FRIEND_THREAD);
+  const [friend, setFriend] = useState<FriendRow | null>(null);
+  const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let alive = true;
+    void Promise.all([apiFriends(), apiThread(id)])
+      .then(([fs, thread]) => {
+        if (!alive) return;
+        setFriend(fs.friends.find((f) => f.friendshipId === id) ?? null);
+        setMessages(thread.messages);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
 
-  const send = (e: React.FormEvent) => {
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
     if (!text) return;
-    setMessages((m) => [...m, { id: `s${m.length}`, from: "me", text, at: "Now" }]);
+
+    // Optimistic: the thread should feel instant even on a slow network.
+    const temp: ThreadMessage = {
+      id: `tmp-${Date.now()}`,
+      from: "me",
+      text,
+      at: new Date().toISOString(),
+    };
+    setMessages((m) => [...m, temp]);
     setDraft("");
+
+    try {
+      const saved = await apiSendMessage(id, text);
+      setMessages((m) =>
+        m.map((x) => (x.id === temp.id ? { ...x, id: saved.id, at: saved.at } : x)),
+      );
+    } catch {
+      setMessages((m) => m.filter((x) => x.id !== temp.id));
+      setDraft(text);
+    }
   };
+
+  if (!friend) {
+    return (
+      <main className="flex flex-1 items-center justify-center px-6 text-center">
+        <p className="text-[13px] text-slate">Loading…</p>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -71,10 +116,10 @@ export default function FriendChatPage({
           {/* Online state and country, so the user knows whether calling now
               makes sense. */}
           <p className="truncate text-[11.5px] text-slate">
-            <span className={cn(friend.online && "font-semibold text-mint")}>
-              {friend.online ? "Online" : "Offline"}
-            </span>{" "}
-            · {friend.country} · {friend.language}
+            Friends since{" "}
+            {friend.since
+              ? new Date(friend.since).toLocaleDateString()
+              : "recently"}
           </p>
         </div>
 
@@ -155,16 +200,17 @@ export default function FriendChatPage({
                   >
                     {m.text}
                   </div>
-                  {m.at && (
-                    <p
-                      className={cn(
-                        "mt-1 text-[10.5px] text-dim",
-                        m.from === "me" ? "text-right" : "text-left",
-                      )}
-                    >
-                      {m.at}
-                    </p>
-                  )}
+                  <p
+                    className={cn(
+                      "mt-1 text-[10.5px] text-dim",
+                      m.from === "me" ? "text-right" : "text-left",
+                    )}
+                  >
+                    {new Date(m.at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
                 </div>
               </motion.div>
             ))}

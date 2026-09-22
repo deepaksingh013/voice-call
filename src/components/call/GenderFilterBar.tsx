@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Users, Lock, Crown } from "lucide-react";
 import { VenusIcon, MarsIcon } from "@/components/ui/GenderIcons";
 import { Badge } from "@/components/ui/Section";
-import { useApp } from "@/lib/store";
+import { useApp, type Filters } from "@/lib/store";
 import { cn } from "@/lib/cn";
 
 /**
@@ -46,7 +46,7 @@ export function GenderFilterBar({
   const router = useRouter();
   const { isPro, isGuest, filters, setFilters } = useApp();
 
-  const choose = (value: string, pro: boolean) => {
+  const choose = (value: Filters["gender"], pro: boolean) => {
     if (pro && !isPro) {
       // Guests need an account first; free accounts go straight to the paywall.
       router.push(isGuest ? "/signup?want=gender" : "/paywall");

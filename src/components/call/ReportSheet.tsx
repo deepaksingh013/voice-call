@@ -7,7 +7,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
-import { PEER, REPORT_REASONS } from "@/lib/data";
+import { REPORT_REASONS } from "@/lib/data";
 import { clock, cn } from "@/lib/cn";
 
 /**
@@ -21,16 +21,20 @@ import { clock, cn } from "@/lib/cn";
  * Reporting and ending are one action. Never make a user stay on a call to
  * finish reporting.
  */
+export type ReportReason = "SEXUAL" | "MINOR" | "ABUSE" | "SCAM" | "OTHER";
+
 export function ReportSheet({
   open,
   seconds,
+  peerName,
   onClose,
   onSubmit,
 }: {
   open: boolean;
   seconds: number;
+  peerName: string;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (reason: ReportReason, attachAudio: boolean) => void;
 }) {
   const [reason, setReason] = useState<string | null>(null);
   const [attachAudio, setAttachAudio] = useState(true);
@@ -39,9 +43,9 @@ export function ReportSheet({
     <Sheet open={open} onClose={onClose} label="Report this call">
       <div className="scroll-area max-h-[78vh] px-5 pb-6 pt-4">
         <div className="mb-4 flex items-center gap-3">
-          <Avatar name={PEER.initial} size="md" />
+          <Avatar name={peerName} size="md" />
           <div className="flex-1">
-            <p className="text-[15px] font-semibold text-chalk">{PEER.name}</p>
+            <p className="text-[15px] font-semibold text-chalk">{peerName}</p>
             <p className="text-[12px] tabular-nums text-slate">{clock(seconds)}</p>
           </div>
         </div>
@@ -101,7 +105,11 @@ export function ReportSheet({
         </div>
 
         <motion.div layout className="mt-5 space-y-2.5">
-          <Button variant="danger" disabled={!reason} onClick={onSubmit}>
+          <Button
+            variant="danger"
+            disabled={!reason}
+            onClick={() => reason && onSubmit(reason as ReportReason, attachAudio)}
+          >
             Report &amp; end call
           </Button>
           <Button variant="ghost" onClick={onClose}>

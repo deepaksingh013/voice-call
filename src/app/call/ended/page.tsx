@@ -9,9 +9,10 @@ import { Screen } from "@/components/shell/Screen";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { GenderFilterBar } from "@/components/call/GenderFilterBar";
-import { PEER } from "@/lib/data";
 import { useApp } from "@/lib/store";
-import { cn } from "@/lib/cn";
+import { useCall } from "@/lib/call";
+import { apiAddFriend } from "@/lib/api";
+import { clock, cn } from "@/lib/cn";
 
 /**
  * SCREEN 07 — Call ended.
@@ -30,9 +31,19 @@ function CallEnded() {
   const router = useRouter();
   const params = useSearchParams();
   const { isGuest } = useApp();
+  const { peer, lastCallSeconds, endedByPeer, rate, reset, search } = useCall();
+
   const [rating, setRating] = useState<Rating | null>(null);
+  const [added, setAdded] = useState(false);
 
   const reported = params.get("reported") === "1";
+  const name = peer?.name ?? "them";
+
+  const choose = (r: Rating) => {
+    setRating(r);
+    // Down-votes quietly de-prioritise that pairing.
+    rate(r === "up" ? 1 : r === "down" ? -1 : 0);
+  };
 
   return (
     <Screen width="base" className="pb-4 pt-6 lg:pb-10 lg:pt-10">
@@ -42,13 +53,16 @@ function CallEnded() {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", damping: 19, stiffness: 280 }}
         >
-          <Avatar name={PEER.initial} size="xl" className="opacity-60" />
+          <Avatar name={name} size="xl" className="opacity-60" />
         </motion.div>
 
         <h1 className="mt-4 text-[22px] font-bold tracking-tight text-chalk sm:text-[26px]">
           Call ended
         </h1>
-        <p className="mt-1 text-[13px] text-slate">{PEER.name} · 04:12</p>
+        <p className="mt-1 text-[13px] text-slate">
+          {name} · {clock(lastCallSeconds)}
+          {endedByPeer && !reported && " · they hung up"}
+        </p>
 
         {reported ? (
           <div className="mt-5 flex w-full items-start gap-2.5 rounded-2xl border border-line bg-surface px-4 py-3 text-left">
@@ -58,14 +72,13 @@ function CallEnded() {
               strokeWidth={2.2}
             />
             <p className="text-[12px] leading-relaxed text-ash">
-              Report sent. You will never be matched with {PEER.name} again, and a
+              Report sent. You will never be matched with {name} again, and a
               moderator will review it.
             </p>
           </div>
         ) : (
           <>
-            {/* Three taps, no text field. Down-votes quietly de-prioritise
-                that pairing. */}
+            {/* Three taps, no text field. */}
             <section className="mt-7 w-full">
               <h2 className="text-[12.5px] font-semibold text-ash">How was it?</h2>
               <div className="mt-3 flex justify-center gap-3">
@@ -73,7 +86,7 @@ function CallEnded() {
                   active={rating === "up"}
                   tone="mint"
                   label="Good call"
-                  onClick={() => setRating("up")}
+                  onClick={() => choose("up")}
                 >
                   <ThumbsUp size={19} strokeWidth={2.1} />
                 </RateButton>
@@ -81,7 +94,7 @@ function CallEnded() {
                   active={rating === "down"}
                   tone="neutral"
                   label="Bad call"
-                  onClick={() => setRating("down")}
+                  onClick={() => choose("down")}
                 >
                   <ThumbsDown size={19} strokeWidth={2.1} />
                 </RateButton>
@@ -89,7 +102,7 @@ function CallEnded() {
                   active={rating === "flag"}
                   tone="coral"
                   label="Report this call"
-                  onClick={() => setRating("flag")}
+                  onClick={() => choose("flag")}
                 >
                   <Flag size={19} strokeWidth={2.1} />
                 </RateButton>
@@ -97,29 +110,36 @@ function CallEnded() {
             </section>
 
             {/* The friend door. */}
-            <motion.section
-              layout
-              className="mt-6 flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-mint-tint text-mint">
-                <UserPlus size={16} strokeWidth={2.2} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] font-semibold text-chalk">
-                  Add {PEER.name} as a friend
-                </p>
-                {isGuest && (
-                  <p className="text-[11.5px] text-slate">Needs a free account</p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push(isGuest ? "/signup" : "/friends")}
-                className="tap shrink-0 rounded-lg bg-mint px-3.5 py-1.5 text-[12px] font-bold text-ink"
+            {peer && (peer.verified || isGuest) && (
+              <motion.section
+                layout
+                className="mt-6 flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left"
               >
-                {isGuest ? "Sign up" : "Add"}
-              </button>
-            </motion.section>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-mint-tint text-mint">
+                  <UserPlus size={16} strokeWidth={2.2} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold text-chalk">
+                    Add {name} as a friend
+                  </p>
+                  {isGuest && (
+                    <p className="text-[11.5px] text-slate">Needs a free account</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={added}
+                  onClick={async () => {
+                    if (isGuest) return router.push("/signup");
+                    await apiAddFriend(peer.deviceId).catch(() => undefined);
+                    setAdded(true);
+                  }}
+                  className="tap shrink-0 rounded-lg bg-mint px-3.5 py-1.5 text-[12px] font-bold text-ink disabled:opacity-50"
+                >
+                  {added ? "Sent" : isGuest ? "Sign up" : "Add"}
+                </button>
+              </motion.section>
+            )}
           </>
         )}
       </div>
@@ -128,8 +148,22 @@ function CallEnded() {
         <GenderFilterBar />
 
         {/* Primary, so the loop continues without a trip back to home. */}
-        <Button onClick={() => router.push("/searching")}>Next call</Button>
-        <Button variant="ghost" onClick={() => router.push("/talk")}>
+        <Button
+          onClick={() => {
+            reset();
+            void search();
+            router.push("/searching");
+          }}
+        >
+          Next call
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            reset();
+            router.push("/talk");
+          }}
+        >
           Back to home
         </Button>
       </div>

@@ -14,7 +14,7 @@ import { useDrawer } from "./Drawer";
  * the open, so this bar disappears rather than repeating it.
  */
 export function TopBar({ className }: { className?: string }) {
-  const { tier, onlineCount } = useApp();
+  const { tier, onlineCount, showOnline } = useApp();
   const { open } = useDrawer();
 
   const tierLabel = tier === "guest" ? "GUEST" : tier === "pro" ? "PRO" : "FREE";
@@ -53,13 +53,16 @@ export function TopBar({ className }: { className?: string }) {
           {tierLabel}
         </span>
 
-        <span className="flex items-center gap-1 rounded-pill border border-mint/25 bg-mint-tint px-2 py-[3.5px] text-[10.5px] font-semibold tabular-nums text-mint sm:text-[11.5px]">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mint" />
+        {/* Real social proof. Hidden rather than faked when it is low. */}
+        {showOnline && (
+          <span className="flex items-center gap-1 rounded-pill border border-mint/25 bg-mint-tint px-2 py-[3.5px] text-[10.5px] font-semibold tabular-nums text-mint sm:text-[11.5px]">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mint" />
+            </span>
+            {onlineCount} online
           </span>
-          {onlineCount} online
-        </span>
+        )}
 
         <button
           type="button"

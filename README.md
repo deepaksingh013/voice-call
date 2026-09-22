@@ -1,18 +1,38 @@
 # Voice-Only — Random Calling App (frontend)
 
 A Next.js implementation of the 17-screen UI specification in
-`Voice-Call-App-UI-Spec.pdf`. **Frontend only** — there is no backend, no
-WebRTC and no network calls. Every screen is driven by local state and the
-placeholder content in `src/lib/data.ts`.
+`Voice-Call-App-UI-Spec.pdf`, wired to the backend in [`backend/`](backend/).
+
+Calls are real: matchmaking over a WebSocket, audio peer-to-peer over WebRTC.
+Guests, accounts, Pro entitlement, filters, history, friends and reports all
+come from the API.
 
 ## Run it
 
+This is the frontend. It needs the backend in [`backend/`](backend/) running.
+
 ```bash
+# 1. backend  (Postgres :5434, Redis :6381, API :4000)
+cd backend
+docker compose up -d
+npm install && npm run db:push && npm run dev
+
+# 2. voice classifier  (:8000) — optional, guests stay "unknown" without it
+cd backend/voice-service
+pip install -r requirements.txt
+uvicorn main:app --port 8000
+
+# 3. frontend  (:3000)
 npm install
-npm run dev      # http://localhost:3000
+npm run dev
+```
+
+`NEXT_PUBLIC_API_URL` points at the backend — see `.env.example`.
+
+```bash
 npm run build    # production build
 npm run lint
-npm run format   # prettier
+npm run format
 ```
 
 ## The flow the design is built around
@@ -22,10 +42,14 @@ account, without an email and without giving their gender. Nothing is asked
 until they reach for a filter; only then do we ask for signup, and only after
 signup do we ask for money.
 
-The app has three entitlement states — `guest`, `free`, `pro` — held in
-`src/lib/store.tsx` and persisted to `localStorage`. **Profile → "Prototype —
-switch tier"** flips between them so every locked and unlocked state can be
-inspected without a backend.
+Three entitlement states — `guest`, `free`, `pro` — decided by the **server**,
+not the client. `src/lib/store.tsx` mirrors them for rendering, but the API
+drops Pro-only filter fields for anyone who has not paid, so a tampered client
+gains nothing.
+
+To see the Pro state: sign up, then Profile → Upgrade. In development the
+paywall activates a subscription directly; in production only a signed gateway
+webhook can.
 
 ## Screens and routes
 
@@ -99,11 +123,25 @@ Animation is Framer Motion: shared page entrance, drawer and sheet springs,
 list stagger, the expanding call rings and the live waveform. Everything
 respects `prefers-reduced-motion`.
 
-## Not built here
+## How the client talks to the server
 
-Anything the specification lists as backend: device tokens, matchmaking
-queues, the rolling 60-second audio buffer, the report pipeline and
-server-side entitlement checks. Screens 09 and 13 are the same screen in two
-states — in a real build, never trust the client for which one applies.
+| File | Job |
+|---|---|
+| `src/lib/api.ts` | Typed fetch client. Mirrors the httpOnly device/session tokens into memory so the WebSocket handshake can carry them as query params. |
+| `src/lib/call.tsx` | The call engine: socket for matchmaking and signalling, `RTCPeerConnection` for the audio. Screens never touch either directly. |
+| `src/lib/store.tsx` | Session, tier and filters, refreshed from the API. |
 
-Prices, app name and ad creative are placeholders, exactly as in the spec.
+The socket waits for the server's `ready` before sending anything — the
+server has a database round trip to do on connect, and a message sent into
+that window has no handler yet.
+
+## Still to do
+
+- **Google sign-in** — the buttons are disabled and say so.
+- **TURN** — peer-to-peer covers most networks; roughly 15% need a relay.
+  Add your ICE servers in `src/lib/call.tsx`.
+- **Report audio** — the 60-second buffer is not captured client-side yet.
+- **Voice mic-check** — `apiClassifyVoice` exists but no screen records the
+  sample yet, so guests stay "unknown" until it is wired to a mic check.
+
+Prices and app name are placeholders, exactly as in the spec.

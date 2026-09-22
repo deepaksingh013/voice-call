@@ -9,6 +9,7 @@ import { Screen, listItem, listStagger } from "@/components/shell/Screen";
 import { Button } from "@/components/ui/Button";
 import { PLANS, PRO_PERKS, type Plan } from "@/lib/data";
 import { useApp } from "@/lib/store";
+import { apiSubscribe } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 /**
@@ -23,7 +24,7 @@ import { cn } from "@/lib/cn";
  */
 export default function PaywallPage() {
   const router = useRouter();
-  const { setTier } = useApp();
+  const { refresh } = useApp();
   const [selected, setSelected] = useState<Plan["id"]>("monthly");
 
   return (
@@ -124,8 +125,11 @@ export default function PaywallPage() {
 
           <Button
             className="mt-3"
-            onClick={() => {
-              setTier("pro");
+            onClick={async () => {
+              // In production this is a gateway redirect; the server only
+              // grants Pro from a signed webhook.
+              await apiSubscribe(selected).catch(() => undefined);
+              await refresh();
               router.push("/filters");
             }}
           >

@@ -8,6 +8,7 @@ import { Screen } from "@/components/shell/Screen";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useApp } from "@/lib/store";
+import { apiDeleteAccount } from "@/lib/api";
 
 /**
  * Delete my data.
@@ -30,7 +31,7 @@ const KEPT = [
 
 export default function DeleteDataPage() {
   const router = useRouter();
-  const { setTier } = useApp();
+  const { refresh } = useApp();
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
 
@@ -116,8 +117,9 @@ export default function DeleteDataPage() {
           <Button
             variant="danger"
             disabled={typed.trim().toUpperCase() !== "DELETE"}
-            onClick={() => {
-              setTier("guest");
+            onClick={async () => {
+              await apiDeleteAccount().catch(() => undefined);
+              await refresh();
               setConfirming(false);
               router.push("/");
             }}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, PhoneOff, SendHorizontal } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
-import { IN_CALL_THREAD, PEER, QUICK_REPLIES } from "@/lib/data";
+import { QUICK_REPLIES } from "@/lib/data";
 import { clock, cn } from "@/lib/cn";
 import type { Message } from "@/lib/data";
 
@@ -21,15 +21,21 @@ import type { Message } from "@/lib/data";
 export function InCallChat({
   open,
   seconds,
+  peerName,
+  peerCountry,
   onClose,
   onEnd,
 }: {
   open: boolean;
   seconds: number;
+  peerName: string;
+  peerCountry: string;
   onClose: () => void;
   onEnd: () => void;
 }) {
-  const [messages, setMessages] = useState<Message[]>(IN_CALL_THREAD);
+  // Starts empty and is never persisted: in-call chat disappears when the
+  // call ends, which is stated at the top of the thread.
+  const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -74,17 +80,17 @@ export function InCallChat({
               <ChevronDown size={19} />
             </button>
 
-            <Avatar name={PEER.initial} size="sm" />
+            <Avatar name={peerName} size="sm" />
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-semibold text-chalk">
-                {PEER.name}
+                {peerName}
               </p>
               <p className="flex items-center gap-1.5 text-[11.5px] text-mint">
                 <span className="h-1.5 w-1.5 rounded-full bg-mint" />
                 On call{" "}
                 <span className="tabular-nums text-slate">
-                  {clock(seconds)} · {PEER.country}
+                  {clock(seconds)} · {peerCountry}
                 </span>
               </p>
             </div>

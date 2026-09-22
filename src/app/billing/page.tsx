@@ -10,6 +10,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Badge } from "@/components/ui/Section";
 import { SettingsRow } from "@/components/ui/SettingsRow";
 import { useApp } from "@/lib/store";
+import { apiCancelSubscription } from "@/lib/api";
 
 /**
  * Payments and billing.
@@ -27,7 +28,7 @@ const INVOICES = [
 
 export default function BillingPage() {
   const router = useRouter();
-  const { isPro, setTier } = useApp();
+  const { isPro, refresh } = useApp();
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -124,8 +125,9 @@ export default function BillingPage() {
         <div className="mt-5 space-y-2.5">
           <Button
             variant="danger"
-            onClick={() => {
-              setTier("free");
+            onClick={async () => {
+              await apiCancelSubscription().catch(() => undefined);
+              await refresh();
               setConfirming(false);
               router.push("/profile");
             }}
