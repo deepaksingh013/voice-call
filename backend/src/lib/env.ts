@@ -35,7 +35,15 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true"),
 
-  VOICE_SERVICE_URL: z.string().default("http://localhost:8000"),
+  /**
+   * Hosts often expose a sibling service as `host:port` with no scheme —
+   * Render's `hostport` property does exactly that — and `fetch` rejects
+   * that outright. Normalise it rather than make the deployer notice.
+   */
+  VOICE_SERVICE_URL: z
+    .string()
+    .default("http://localhost:8000")
+    .transform((v) => (/^https?:\/\//.test(v) ? v : `http://${v}`)),
   /** Below this, an inferred gender is treated as unknown. */
   VOICE_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.9),
 });
@@ -46,7 +54,22 @@ if (!parsed.success) {
   const issues = parsed.error.issues
     .map((i) => `  ${i.path.join(".")}: ${i.message}`)
     .join("\n");
-  throw new Error(`Invalid environment configuration:\n${issues}`);
+  // A bare "Required" in a host's logs does not tell you where to go. Say
+  // what is missing and where it is meant to come from.
+  throw new Error(
+    [
+      "Invalid environment configuration:",
+      issues,
+      "",
+      "Set these in your host's environment settings:",
+      "  DATABASE_URL  - Postgres connection string",
+      "  REDIS_URL     - Redis / Key Value connection string",
+      "  JWT_SECRET    - 32+ random characters",
+      "  CORS_ORIGIN   - your frontend URL, no trailing slash",
+      "",
+      "Locally these come from backend/.env (see .env.example).",
+    ].join("\n"),
+  );
 }
 
 export const env = parsed.data;

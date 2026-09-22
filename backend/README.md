@@ -34,6 +34,10 @@ node e2e.mjs                        # drives the whole call loop
 `render.yaml` is a blueprint: it creates the API, Postgres, Redis and the
 voice service together.
 
+**Use New → Blueprint, not New → Web Service.** A plain web service creates
+only the Node process: no database, no Redis, no environment variables, and
+the server exits at boot complaining that `DATABASE_URL` is required.
+
 1. Push this repo to GitHub.
 2. Render dashboard → **New → Blueprint** → pick the repo.
 3. Render reads `backend/render.yaml` and creates four resources.
@@ -54,6 +58,27 @@ voice service together.
 The build runs `prisma migrate deploy`, which applies the committed
 migrations in `prisma/migrations/` without prompting. Never `db push` against
 a live database.
+
+### If you already created a plain Web Service
+
+Either delete it and use the blueprint, or finish it by hand:
+
+1. **New → Postgres**, and **New → Key Value** (Render's Redis).
+2. On the web service, set **Root Directory** to `backend`.
+3. Build command: `npm install && npm run build`
+4. Start command: `npm start`
+5. Environment variables:
+
+   | Key | Value |
+   |---|---|
+   | `NODE_ENV` | `production` |
+   | `DATABASE_URL` | Internal Connection String from your Postgres |
+   | `REDIS_URL` | Internal Connection String from your Key Value store |
+   | `JWT_SECRET` | 32+ random characters |
+   | `CORS_ORIGIN` | your frontend URL, no trailing slash |
+
+`prisma generate` runs on install and `prisma migrate deploy` runs at start,
+so the schema is created on first boot either way.
 
 ### Things that differ in production
 
