@@ -1,0 +1,268 @@
+// Voice-Only — data model.
+//
+// Two identities exist and they are deliberately separate:
+//
+//   Device  — every visitor, including guests. Carries the ban, the inferred
+//             gender and the call history of someone who never signed up.
+//   User    — created only at signup. Carries the declared gender, the
+//             subscription and anything that must survive a phone change.
+//
+// A Device may later point at a User. Bans follow the Device, because that is
+// the only thing a guest has, and clearing cookies must not produce a fresh
+// identity.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Tier {
+  GUEST
+  FREE
+  PRO
+}
+
+enum Gender {
+  FEMALE
+  MALE
+  OTHER
+}
+
+/// How we came to believe a device's gender. Declared always wins.
+enum GenderSource {
+  DECLARED
+  INFERRED
+}
+
+enum CallEndReason {
+  HANGUP
+  SKIPPED
+  REPORTED
+  DISCONNECTED
+}
+
+enum ReportReason {
+  SEXUAL
+  MINOR
+  ABUSE
+  SCAM
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  UPHELD
+  REJECTED
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+// ---------------------------------------------------------------------------
+
+model Device {
+  id        String   @id @default(cuid())
+  /// Opaque public id carried in the signed device token.
+  token     String   @unique
+  country   String   @default("IN")
+  /// Geo-IP at issue time, kept for abuse analysis.
+  ipHash    String?
+  userAgent String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Inferred from voice. Never overrides a signed-in user's declared gender.
+  inferredGender     Gender?
+  inferredConfidence Float?
+  inferredAt         DateTime?
+
+  bannedAt     DateTime?
+  bannedReason String?
+
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  callsAsCaller Call[] @relation("CallerDevice")
+  callsAsPeer   Call[] @relation("PeerDevice")
+  reportsMade   Report[] @relation("Reporter")
+  reportsGot    Report[] @relation("Reported")
+
+  @@index([userId])
+  @@index([country, bannedAt])
+}
+
+model User {
+  id    String  @id @default(cuid())
+  email String  @unique
+  name  String
+
+  /// Collected once at signup and locked afterwards — the gender filter is
+  /// worthless within a week without this.
+  gender      Gender
+  dateOfBirth DateTime
+
+  tier Tier @default(FREE)
+
+  proSince     DateTime?
+  proRenewsAt  DateTime?
+  proPlan      String?
+
+  /// Live strike count. Three upheld reports auto-suspend.
+  strikes     Int       @default(0)
+  suspendedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  devices  Device[]
+  sessions Session[]
+  filters  FilterPref?
+  friendsA Friendship[] @relation("FriendA")
+  friendsB Friendship[] @relation("FriendB")
+  messages Message[]
+
+  @@index([tier])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Six-digit email codes. No passwords exist anywhere in this product.
+model LoginCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  consumedAt DateTime?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model FilterPref {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  languages String[] @default(["Hinglish"])
+  country   String   @default("IN")
+  /// null means "Anyone".
+  gender    Gender?
+  region    String?
+  ageMin    Int      @default(18)
+  ageMax    Int      @default(60)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Call {
+  id String @id @default(cuid())
+
+  callerDeviceId String
+  callerDevice   Device @relation("CallerDevice", fields: [callerDeviceId], references: [id], onDelete: Cascade)
+
+  peerDeviceId String
+  peerDevice   Device @relation("PeerDevice", fields: [peerDeviceId], references: [id], onDelete: Cascade)
+
+  /// What the matcher actually used. Needed when auditing classifier
+  /// precision after a wrong-gender report.
+  matchedOn Json
+
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  seconds   Int       @default(0)
+  endReason CallEndReason?
+
+  /// -1, 0 or 1 from each side. Feeds match quality.
+  callerRating Int?
+  peerRating   Int?
+
+  reports Report[]
+
+  @@index([callerDeviceId, startedAt])
+  @@index([peerDeviceId, startedAt])
+}
+
+model Report {
+  id     String @id @default(cuid())
+  callId String
+  call   Call   @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  reporterDeviceId String
+  reporterDevice   Device @relation("Reporter", fields: [reporterDeviceId], references: [id], onDelete: Cascade)
+
+  reportedDeviceId String
+  reportedDevice   Device @relation("Reported", fields: [reportedDeviceId], references: [id], onDelete: Cascade)
+
+  reason ReportReason
+  note   String?
+
+  /// Object key of the rolling 60s buffer, if the reporter attached it.
+  audioKey       String?
+  audioExpiresAt DateTime?
+
+  status     ReportStatus @default(PENDING)
+  reviewedAt DateTime?
+  reviewedBy String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([reportedDeviceId])
+  // A reported pair is never matched again, so this must be fast to look up.
+  @@index([reporterDeviceId, reportedDeviceId])
+}
+
+model Friendship {
+  id String @id @default(cuid())
+
+  // Always stored with aId < bId so a pair has exactly one row.
+  aId String
+  a   User   @relation("FriendA", fields: [aId], references: [id], onDelete: Cascade)
+  bId String
+  b   User   @relation("FriendB", fields: [bId], references: [id], onDelete: Cascade)
+
+  /// Who sent the request — a one-sided add must never open a channel.
+  requestedBy String
+  status      FriendStatus @default(PENDING)
+
+  createdAt  DateTime @default(now())
+  acceptedAt DateTime?
+
+  messages Message[]
+
+  @@unique([aId, bId])
+  @@index([bId, status])
+}
+
+model Message {
+  id           String     @id @default(cuid())
+  friendshipId String
+  friendship   Friendship @relation(fields: [friendshipId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  /// Plain text only. No images, no files, no link previews.
+  body String
+
+  createdAt DateTime @default(now())
+
+  @@index([friendshipId, createdAt])
+}
