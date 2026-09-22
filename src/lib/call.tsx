@@ -239,7 +239,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     const device = getDeviceToken();
     if (!device) {
-      patch({ error: "No device token yet. Reload the page." });
+      // No token means the very first API call never succeeded, which in
+      // practice means the backend is not reachable at all.
+      patch({
+        error:
+          "Cannot reach the server, so calls are unavailable. Check that the API is running and that NEXT_PUBLIC_API_URL points at it.",
+      });
       return null;
     }
 

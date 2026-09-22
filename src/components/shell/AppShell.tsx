@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
+import { OfflineBanner } from "./OfflineBanner";
 
 /**
  * The responsive frame for the whole product. One codebase, three shapes:
@@ -31,6 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* The page column: fixed header, scrolling middle, fixed tab bar. */}
       <div className="relative flex h-full w-full min-w-0 flex-1 flex-col">
+        <OfflineBanner />
         {children}
       </div>
     </div>

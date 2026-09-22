@@ -50,6 +50,8 @@ type Prefs = {
 
 type Store = {
   ready: boolean;
+  /** True when the API could not be reached at all. */
+  offline: boolean;
   tier: Tier;
   isGuest: boolean;
   isPro: boolean;
@@ -102,6 +104,7 @@ const Ctx = createContext<Store | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [filters, setFiltersState] = useState<Filters>(DEFAULT_FILTERS);
   const [locked, setLocked] = useState<FiltersResponse["locked"]>({
@@ -140,9 +143,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const [meRes, filtersRes] = await Promise.all([apiGetMe(), apiGetFilters()]);
       setMe(meRes);
       applyFilters(filtersRes);
+      setOffline(false);
     } catch {
-      // Offline or the backend is down. The shell still renders; actions
-      // that need the server will surface their own errors.
+      // The backend is unreachable. Say so loudly rather than rendering a
+      // shell where every button quietly does nothing — that reads as a
+      // broken app, and the cause is invisible.
+      setOffline(true);
     } finally {
       setReady(true);
     }
@@ -266,6 +272,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     return {
       ready,
+      offline,
       tier,
       isGuest: tier === "guest",
       isPro: tier === "pro",
@@ -292,6 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [
     ready,
+    offline,
     tier,
     me,
     filters,
