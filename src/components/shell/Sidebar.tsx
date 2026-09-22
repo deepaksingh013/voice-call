@@ -34,7 +34,7 @@ export function Sidebar() {
     pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[252px] shrink-0 flex-col border-r border-line bg-ink xl:w-[268px] lg:flex">
+    <aside className="hidden h-full w-[252px] shrink-0 flex-col border-r border-line bg-ink lg:flex xl:w-[268px]">
       <div className="flex items-center gap-2 px-5 py-5">
         <span aria-hidden className="flex h-5 items-end gap-[2.5px]">
           {[7, 14, 19, 12, 6].map((h, i) => (

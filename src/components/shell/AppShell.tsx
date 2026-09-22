@@ -19,12 +19,18 @@ import { Sidebar } from "./Sidebar";
  */
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh bg-ink">
+    // The shell is exactly one viewport tall at every breakpoint, and clips.
+    // That is what makes each screen's own scroll container work: a flex
+    // child can only scroll when its parent has a definite height. With a
+    // `min-h` parent the column just grows to fit its content, the scroll
+    // container ends up exactly as tall as what is inside it, and nothing
+    // scrolls at all — which is how the header and tab bar used to push
+    // content off the bottom of a phone with no way to reach it.
+    <div className="relative flex h-dvh overflow-hidden bg-ink">
       <Sidebar />
 
-      {/* The page column. `lg:h-dvh` lets each screen own its own scrolling
-          next to a fixed sidebar, instead of the whole document scrolling. */}
-      <div className="relative flex min-h-dvh w-full min-w-0 flex-1 flex-col lg:h-dvh lg:min-h-0">
+      {/* The page column: fixed header, scrolling middle, fixed tab bar. */}
+      <div className="relative flex h-full w-full min-w-0 flex-1 flex-col">
         {children}
       </div>
     </div>
