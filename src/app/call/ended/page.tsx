@@ -8,6 +8,7 @@ import { TopBar } from "@/components/shell/TopBar";
 import { Screen } from "@/components/shell/Screen";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { GenderFilterBar } from "@/components/call/GenderFilterBar";
 import { PEER } from "@/lib/data";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/cn";
@@ -124,6 +125,8 @@ function CallEnded() {
       </div>
 
       <div className="shrink-0 space-y-2.5">
+        <GenderFilterBar />
+
         {/* Primary, so the loop continues without a trip back to home. */}
         <Button onClick={() => router.push("/searching")}>Next call</Button>
         <Button variant="ghost" onClick={() => router.push("/talk")}>

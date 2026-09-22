@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Screen } from "@/components/shell/Screen";
 import { Button } from "@/components/ui/Button";
 import { Stepper } from "@/components/ui/Stepper";
 import { GoogleMark } from "@/components/ui/GoogleMark";
+import { VenusIcon, MarsIcon } from "@/components/ui/GenderIcons";
 
 /**
  * SCREEN 10 — Signup, email or Google.
@@ -16,9 +17,15 @@ import { GoogleMark } from "@/components/ui/GoogleMark";
  * one-tap path; email is the fallback. Nothing else is asked — no username,
  * no password, no phone.
  */
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const [email, setEmail] = useState("");
+
+  // Set when the user arrived by reaching for the gender filter. Naming
+  // the reason they came keeps the thread intact all the way to the
+  // paywall, which opens with the same promise.
+  const wantsGender = params.get("want") === "gender";
 
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -28,6 +35,24 @@ export default function SignupPage() {
 
       <Screen width="narrow" center className="pb-5 pt-4 sm:pt-8">
         <Stepper step={1} of={3} />
+
+        {wantsGender && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mt-4 flex items-center gap-2.5 rounded-2xl border border-gold/25 bg-gold/[0.06] px-4 py-3"
+          >
+            <span className="flex shrink-0 items-center gap-1 text-gold">
+              <VenusIcon size={15} />
+              <MarsIcon size={15} />
+            </span>
+            <p className="text-[12px] leading-snug text-ash">
+              To choose who you talk to, you need an account first.{" "}
+              <span className="text-slate">Takes 30 seconds.</span>
+            </p>
+          </motion.div>
+        )}
 
         <motion.h1
           initial={{ opacity: 0, y: 10 }}
@@ -106,5 +131,13 @@ export default function SignupPage() {
         </p>
       </Screen>
     </>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="flex-1" />}>
+      <SignupForm />
+    </Suspense>
   );
 }

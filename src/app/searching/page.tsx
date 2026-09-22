@@ -7,6 +7,7 @@ import { ShieldAlert, AudioLines, BellRing } from "lucide-react";
 import { TopBar } from "@/components/shell/TopBar";
 import { Screen } from "@/components/shell/Screen";
 import { Button } from "@/components/ui/Button";
+import { GenderFilterBar } from "@/components/call/GenderFilterBar";
 import { SAFETY_TIPS } from "@/lib/data";
 import { useApp } from "@/lib/store";
 
@@ -96,6 +97,8 @@ export default function SearchingPage() {
         </div>
 
         <div className="shrink-0 space-y-3">
+          <GenderFilterBar variant="inline" />
+
           <div className="flex items-start gap-2.5 rounded-2xl border border-line bg-surface px-4 py-3">
             <ShieldAlert
               size={15}

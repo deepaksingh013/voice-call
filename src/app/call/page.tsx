@@ -23,6 +23,7 @@ import {
 } from "@/components/call/ConfirmLeaveDialog";
 import { InCallChat } from "@/components/call/InCallChat";
 import { ReportSheet } from "@/components/call/ReportSheet";
+import { GenderFilterBar } from "@/components/call/GenderFilterBar";
 import { PEER } from "@/lib/data";
 import { useApp } from "@/lib/store";
 import { clock, cn } from "@/lib/cn";
@@ -178,6 +179,17 @@ export default function CallPage() {
             >
               {isGuest ? <Lock size={14} /> : <UserPlus size={15} />}
             </SecondaryControl>
+          </div>
+
+          {/* Who the next call is with. Mid-call is when a user is most
+              certain about who they do and do not want to meet, so the
+              choice is offered here rather than only back on the home
+              screen. */}
+          <div className="mt-3 shrink-0">
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-dim">
+              Next call with
+            </p>
+            <GenderFilterBar variant="inline" />
           </div>
         </div>
       </main>

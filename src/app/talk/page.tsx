@@ -8,6 +8,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Screen } from "@/components/shell/Screen";
 import { TabsChrome } from "@/components/shell/TabsChrome";
 import { CallButton } from "@/components/call/CallButton";
+import { GenderFilterBar } from "@/components/call/GenderFilterBar";
 import { INTERESTS } from "@/lib/data";
 import { useApp } from "@/lib/store";
 
@@ -102,6 +103,11 @@ function TalkScreen() {
             </p>
           </div>
 
+          {/* The paid lever, directly under the heading: the user decides who
+              they want before they press call. On desktop it moves to the top
+              of the rail so it does not push the button off centre. */}
+          <GenderFilterBar className="mt-4 shrink-0 lg:hidden" />
+
           <div className="flex flex-1 items-center justify-center py-6 lg:py-10">
             <CallButton onClick={() => router.push("/searching")} />
           </div>
@@ -120,6 +126,8 @@ function TalkScreen() {
 
         {/* Right rail — desktop only. */}
         <aside className="hidden shrink-0 space-y-4 lg:block lg:pt-14">
+          <GenderFilterBar />
+
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h2 className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.14em] text-dim">
               Match me on
