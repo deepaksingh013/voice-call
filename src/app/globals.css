@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Design tokens — sampled directly from the UI specification.
+   The product is dark-only by design; there is no light theme.
+------------------------------------------------------------------- */
+@theme {
+  --color-ink: #0f1113; /* page background */
+  --color-surface: #181b20; /* cards, pills, sheets */
+  --color-surface-hi: #21252a; /* raised / pressed pills */
+  --color-line: #272c32; /* hairline borders */
+
+  --color-mint: #3cdb97; /* primary accent */
+  --color-mint-deep: #21b978;
+  --color-mint-tint: #17251d; /* accent-on-dark fill */
+
+  --color-danger: #e24f3a; /* end call */
+  --color-danger-tint: #251617;
+  --color-coral: #e8785f; /* report */
+
+  --color-chalk: #f1f2f5; /* primary text */
+  --color-ash: #c3cad0; /* secondary text */
+  --color-slate: #8b949e; /* muted text */
+  --color-dim: #5c646c; /* disabled / locked */
+
+  --color-gold: #e5b567; /* pro badge */
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+
+  --radius-pill: 999px;
+
+  --animate-ring: ring 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+}
+
+@keyframes ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -120% 0;
+  }
+  100% {
+    background-position: 220% 0;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Base
+------------------------------------------------------------------- */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tailwind v4's Preflight sets `cursor: default` on buttons. On a product
+   whose whole first screen is one big button, that silently removes the
+   strongest "this is clickable" signal a desktop user has. Put it back. */
+button:not(:disabled),
+label[for],
+summary {
+  cursor: pointer;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-chalk);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+/* The phone viewport scrolls internally; the page itself never does. */
+.scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@utility tap {
+  transition:
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+.tap:active {
+  transform: scale(0.97);
+}
